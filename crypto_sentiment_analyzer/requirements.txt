@@ -1,0 +1,6 @@
+streamlit
+praw
+textblob
+python-dotenv
+yfinance
+pandas
