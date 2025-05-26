@@ -1,8 +1,8 @@
 import praw
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
+REDDIT_CLIENT_ID = "hPi7skbJRo6j7PHHNfhLFw"
+REDDIT_CLIENT_SECRET = "XwRxWu6Odi5bFW1k_4Hl-dFKps7nKQ"
+REDDIT_USER_AGENT = "test"
 
 def reddit_connection():
     return praw.Reddit(
