@@ -6,11 +6,11 @@ REDDIT_USER_AGENT = "test"
 
 def reddit_connection():
     return praw.Reddit(
-        client_id=os.getenv("REDDIT_CLIENT_ID"),
-        client_secret=os.getenv("REDDIT_CLIENT_SECRET"),
-        user_agent=os.getenv("REDDIT_USER_AGENT")
+        client_id=REDDIT_CLIENT_ID,
+        client_secret=REDDIT_CLIENT_SECRET,
+        user_agent=REDDIT_USER_AGENT
     )
-
+    
 def fetch_reddit_data(tickers, subreddits, post_limit=100):
     reddit = reddit_connection()
     data = []
