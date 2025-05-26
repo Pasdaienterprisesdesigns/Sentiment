@@ -1,15 +1,18 @@
 import pandas as pd
 
 def merge_sentiment_price(sentiment_df, price_df):
-    # — Flatten any MultiIndex columns (e.g. from yfinance) to a single level
-    if isinstance(price_df.columns, pd.MultiIndex):
-        price_df.columns = price_df.columns.get_level_values(-1)
-    
-    # — Convert Reddit timestamps and sort both DataFrames
+    # Convert UNIX timestamps to datetime
     sentiment_df['date'] = pd.to_datetime(sentiment_df['created_utc'], unit='s')
+    
+    # Sort both DataFrames by date
     sentiment_df.sort_values(by='date', inplace=True)
     price_df.sort_values(by='date', inplace=True)
     
-    # — Perform the asof merge
-    merged_df = pd.merge_asof(sentiment_df, price_df, on='date')
+    # Merge “as-of” so each sentiment point picks up the nearest prior price
+    merged_df = pd.merge_asof(
+        sentiment_df,
+        price_df,
+        on='date',
+        direction='backward'
+    )
     return merged_df
