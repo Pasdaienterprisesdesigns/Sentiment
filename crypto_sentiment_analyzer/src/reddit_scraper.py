@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 
 FALLBACK_CLIENT_ID     = "hPi7skbJRo6j7PHHNfhLFw"
 FALLBACK_CLIENT_SECRET = "XwRxWu6Odi5bFW1k_4Hl-dFKps7nKQ"
-FALLBACK_USER_AGENT    = "crypto_sentiment_analyzer_by_dairus"
+FALLBACK_USER_AGENT    = "New-Cloud5866"
 
 def reddit_connection() -> praw.Reddit:
     """
