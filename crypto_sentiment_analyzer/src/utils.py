@@ -8,33 +8,30 @@ def merge_sentiment_price(
     Align sentiment scores with historical price data using an as-of merge.
 
     Args:
-        sentiment_df: DataFrame with columns:
-            - 'ticker':      str, crypto ticker
-            - 'created_utc': float, UNIX timestamp
-            - 'date':        datetime64[ns], conversion of 'created_utc'
-            - sentiment columns (e.g. 'polarity', 'subjectivity')
-        price_df:     DataFrame with columns:
-            - 'date':      datetime64[ns], timestamps of each price point
-            - 'Close':     float, closing price at that timestamp
+        sentiment_df: DataFrame with at least:
+            - 'date' datetime64[ns] (timestamp of each sentiment point)
+            - other sentiment columns (e.g. 'polarity')
+        price_df: DataFrame with:
+            - 'date' datetime64[ns] (timestamp of each price point)
+            - 'Close' float (closing price)
 
     Returns:
-        merged_df: DataFrame containing all columns from sentiment_df plus
-                   a 'Close' column, where each sentiment row is matched
-                   to the nearest prior price.
+        merged_df: sentiment_df plus a 'Close' column, where each sentiment row
+                   is matched to the latest prior price.
     """
 
-    # 1) Flatten any MultiIndex columns in price_df
+    # 1) Flatten MultiIndex columns in price_df (if any)
     if isinstance(price_df.columns, pd.MultiIndex):
         price_df.columns = price_df.columns.get_level_values(-1)
 
-    # 2) Ensure 'date' columns are datetime and sort both DataFrames
+    # 2) Ensure both DataFrames have a datetime 'date' and sort by it
     sentiment_df['date'] = pd.to_datetime(sentiment_df['date'])
-    price_df['date']     = pd.to_datetime(price_df['date'])
+    price_df   ['date'] = pd.to_datetime(price_df['date'])
 
     sentiment_df = sentiment_df.sort_values('date').reset_index(drop=True)
     price_df     = price_df.sort_values('date').reset_index(drop=True)
 
-    # 3) Perform a backward as-of merge: each sentiment uses the latest price at or before its timestamp
+    # 3) As-of merge: for each sentiment timestamp, bring in the last prior Close
     merged_df = pd.merge_asof(
         left=sentiment_df,
         right=price_df[['date', 'Close']],
