@@ -1,6 +1,6 @@
 streamlit
-praw
+requests
 textblob
-python-dotenv
-yfinance
 pandas
+yfinance
+python-dateutil
