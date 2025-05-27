@@ -1,26 +1,7 @@
-import praw
-import streamlit as st
+import requests
 from typing import List, Dict, Any
 
-FALLBACK_CLIENT_ID     = "hPi7skbJRo6j7PHHNfhLFw"
-FALLBACK_CLIENT_SECRET = "XwRxWu6Odi5bFW1k_4Hl-dFKps7nKQ"
-FALLBACK_USER_AGENT    = "New-Cloud5866"
-
-def reddit_connection() -> praw.Reddit:
-    """
-    Initialize and return a PRAW Reddit instance, sourcing credentials
-    from Streamlit secrets (preferred) or fallback constants (local dev).
-    """
-    cfg = st.secrets.get("reddit", {})
-    client_id     = cfg.get("client_id",     FALLBACK_CLIENT_ID)
-    client_secret = cfg.get("client_secret", FALLBACK_CLIENT_SECRET)
-    user_agent    = cfg.get("user_agent",    FALLBACK_USER_AGENT)
-
-    return praw.Reddit(
-        client_id=client_id,
-        client_secret=client_secret,
-        user_agent=user_agent
-    )
+PUSHSHIFT_BASE = "https://api.pushshift.io/reddit/search"
 
 def fetch_reddit_data(
     tickers: List[str],
@@ -28,36 +9,61 @@ def fetch_reddit_data(
     post_limit: int = 100
 ) -> List[Dict[str, Any]]:
     """
-    Fetch Reddit posts (and their selftext) from given subreddits that mention
-    any of the provided tickers.
+    Fetch recent Reddit submissions mentioning specified tickers
+    via the Pushshift API (no authentication required).
 
     Args:
-        tickers:     List of uppercase ticker symbols, e.g. ["BTC", "ETH"]
-        subreddits:  List of subreddit names to search, e.g. ["CryptoCurrency"]
-        post_limit:  Number of top posts to retrieve per subreddit
+        tickers:     List of uppercase ticker symbols, e.g. ["BTC","ETH"]
+        subreddits:  List of subreddit names to search in, e.g. ["CryptoCurrency"]
+        post_limit:  Maximum number of posts per subreddit to retrieve.
 
     Returns:
-        A list of dicts with keys:
-          - 'ticker':      str, the matched ticker symbol
-          - 'text':        str, combined title + selftext
-          - 'created_utc': float, UNIX timestamp of the post
+        A list of dicts, each with:
+          - 'ticker':      str, matched ticker symbol
+          - 'text':        str, title + selftext
+          - 'created_utc': int, UNIX timestamp of the post
     """
-    reddit = reddit_connection()
     results: List[Dict[str, Any]] = []
 
-    for subreddit_name in subreddits:
-        subreddit = reddit.subreddit(subreddit_name)
-        for post in subreddit.hot(limit=post_limit):
-            # combine title and body, uppercase for case-insensitive matching
-            combined = f"{post.title} {post.selftext or ''}"
-            combined_upper = combined.upper()
+    for subreddit in subreddits:
+        # 1) Fetch submissions
+        params = {
+            "subreddit": subreddit,
+            "q": " OR ".join(tickers),
+            "size": post_limit,
+            "fields": ["title", "selftext", "created_utc"],
+            "sort": "desc",
+            "sort_type": "created_utc"
+        }
+        resp = requests.get(f"{PUSHSHIFT_BASE}/submission/", params=params)
+        resp.raise_for_status()
+        submissions = resp.json().get("data", [])
 
-            # check each ticker
+        for post in submissions:
+            text = (post.get("title", "") or "") + " " + (post.get("selftext") or "")
+            up = text.upper()
             for ticker in tickers:
-                if ticker.upper() in combined_upper:
+                if ticker in up:
                     results.append({
-                        "ticker":      ticker.upper(),
-                        "text":        combined,
-                        "created_utc": post.created_utc
+                        "ticker":      ticker,
+                        "text":        text,
+                        "created_utc": post.get("created_utc", 0)
                     })
+
+        # 2) (Optional) Fetch comments too
+        params["fields"] = ["body", "created_utc"]
+        resp = requests.get(f"{PUSHSHIFT_BASE}/comment/", params=params)
+        resp.raise_for_status()
+        comments = resp.json().get("data", [])
+        for cm in comments:
+            text = cm.get("body", "") or ""
+            up = text.upper()
+            for ticker in tickers:
+                if ticker in up:
+                    results.append({
+                        "ticker":      ticker,
+                        "text":        text,
+                        "created_utc": cm.get("created_utc", 0)
+                    })
+
     return results
