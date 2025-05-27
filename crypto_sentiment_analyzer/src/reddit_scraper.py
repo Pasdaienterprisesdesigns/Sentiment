@@ -1,25 +1,20 @@
-# src/reddit_scraper.py
-
 import praw
 import streamlit as st
+from typing import List, Dict, Any
 
-# ——— CONFIGURATION ———
-# Local dev fallbacks (dummy values; replace with your own for testing):
-REDDIT_CLIENT_ID     = "hPi7skbJRo6j7PHHNfhLFw"
-REDDIT_CLIENT_SECRET = "XwRxWu6Odi5bFW1k_4Hl-dFKps7nKQ"
-REDDIT_USER_AGENT    = "crypto_sentiment_analyzer_by_dairus"
+FALLBACK_CLIENT_ID     = "hPi7skbJRo6j7PHHNfhLFw"
+FALLBACK_CLIENT_SECRET = "XwRxWu6Odi5bFW1k_4Hl-dFKps7nKQ"
+FALLBACK_USER_AGENT    = "crypto_sentiment_analyzer_by_dairus"
 
-# In Streamlit Cloud, you’ll override these via st.secrets:
-# [reddit]
-# client_id     = "YOUR_CLIENT_ID"
-# client_secret = "YOUR_CLIENT_SECRET"
-# user_agent    = "script:crypto.sentiment:v1.0 (by /u/your_reddit_username)"
-
-def reddit_connection():
+def reddit_connection() -> praw.Reddit:
+    """
+    Initialize and return a PRAW Reddit instance, sourcing credentials
+    from Streamlit secrets (preferred) or fallback constants (local dev).
+    """
     cfg = st.secrets.get("reddit", {})
-    client_id     = cfg.get("client_id",     REDDIT_CLIENT_ID)
-    client_secret = cfg.get("client_secret", REDDIT_CLIENT_SECRET)
-    user_agent    = cfg.get("user_agent",    REDDIT_USER_AGENT)
+    client_id     = cfg.get("client_id",     FALLBACK_CLIENT_ID)
+    client_secret = cfg.get("client_secret", FALLBACK_CLIENT_SECRET)
+    user_agent    = cfg.get("user_agent",    FALLBACK_USER_AGENT)
 
     return praw.Reddit(
         client_id=client_id,
@@ -27,18 +22,42 @@ def reddit_connection():
         user_agent=user_agent
     )
 
-def fetch_reddit_data(tickers, subreddits, post_limit=100):
+def fetch_reddit_data(
+    tickers: List[str],
+    subreddits: List[str],
+    post_limit: int = 100
+) -> List[Dict[str, Any]]:
+    """
+    Fetch Reddit posts (and their selftext) from given subreddits that mention
+    any of the provided tickers.
+
+    Args:
+        tickers:     List of uppercase ticker symbols, e.g. ["BTC", "ETH"]
+        subreddits:  List of subreddit names to search, e.g. ["CryptoCurrency"]
+        post_limit:  Number of top posts to retrieve per subreddit
+
+    Returns:
+        A list of dicts with keys:
+          - 'ticker':      str, the matched ticker symbol
+          - 'text':        str, combined title + selftext
+          - 'created_utc': float, UNIX timestamp of the post
+    """
     reddit = reddit_connection()
-    data = []
+    results: List[Dict[str, Any]] = []
+
     for subreddit_name in subreddits:
-        for post in reddit.subreddit(subreddit_name).hot(limit=post_limit):
-            text = f"{post.title} {post.selftext or ''}"
-            text_upper = text.upper()
+        subreddit = reddit.subreddit(subreddit_name)
+        for post in subreddit.hot(limit=post_limit):
+            # combine title and body, uppercase for case-insensitive matching
+            combined = f"{post.title} {post.selftext or ''}"
+            combined_upper = combined.upper()
+
+            # check each ticker
             for ticker in tickers:
-                if ticker in text_upper:
-                    data.append({
-                        'ticker':      ticker,
-                        'text':        text,
-                        'created_utc': post.created_utc
+                if ticker.upper() in combined_upper:
+                    results.append({
+                        "ticker":      ticker.upper(),
+                        "text":        combined,
+                        "created_utc": post.created_utc
                     })
-    return data
+    return results
